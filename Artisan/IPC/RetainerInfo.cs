@@ -49,7 +49,7 @@ namespace Artisan.IPC
             {
                 try
                 {
-                    return !P.Config.DisableAllaganTools && (DalamudReflector.TryGetDalamudPlugin("Allagan Tools", out var at, false, true) || DalamudReflector.TryGetDalamudPlugin("InventoryTools", out var it, false, true)) && _IsInitialized != null && _IsInitialized.InvokeFunc();
+                    return !P.Config.DisableAllaganTools && (DalamudReflector.TryGetDalamudPlugin("Allagan Tools", out var at, false, true) || DalamudReflector.TryGetDalamudPlugin("InventoryToolsCN", out var it, false, true)) && _IsInitialized != null && _IsInitialized.InvokeFunc();
                 }
                 catch
                 {
