@@ -1,6 +1,6 @@
 ﻿using Artisan.RawInformation.Character;
 using System.Collections.Generic;
-using System.Diagnostics;
+using Skills = Artisan.RawInformation.Character.Skills;
 
 namespace Artisan.CraftingLogic;
 
@@ -9,7 +9,7 @@ public interface ISolverDefinition
 {
     public record struct Desc(ISolverDefinition Def, int Flavour, int Priority, string Name, string UnsupportedReason = "")
     {
-        public Solver CreateSolver(CraftState craft) => Def.Create(craft, Flavour);
+        public Solver? CreateSolver(CraftState craft) => this == default ? null : Def.Create(craft, Flavour);
     }
 
     public IEnumerable<Desc> Flavours(CraftState craft);

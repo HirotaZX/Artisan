@@ -1,6 +1,5 @@
 ﻿using Artisan.CraftingLogic.CraftData;
 using Artisan.RawInformation.Character;
-using ECommons.DalamudServices;
 using System.Collections.Generic;
 
 namespace Artisan.CraftingLogic.Solvers;
@@ -12,7 +11,7 @@ public class ExpertSolverDefinition : ISolverDefinition
     public IEnumerable<ISolverDefinition.Desc> Flavours(CraftState craft)
     {
         if (craft.CraftExpert)
-            yield return new(this, 0, 1, "Expert Recipe Solver", craft.StatLevel >= 90 ? "" : "Requires Level 90");
+            yield return new(this, 0, 2, "Expert Recipe Solver", craft.StatLevel >= 90 ? "" : "Requires Level 90");
     }
 
     public Solver Create(CraftState craft, int flavour) => new ExpertSolver();
@@ -189,7 +188,7 @@ public class ExpertSolver : Solver
         var allowPrecise = cfg.MidAllowPrecise && (!allowObserveOnLowDura || step.ManipulationLeft > 0 || step.Durability > 25) /*&& !venerationActive*/;
         if (progressDeficit > 0 && SolveMidHighPriorityProgress(step, allowIntensive) is var highPrioProgress && highPrioProgress != Skills.None)
             return new(SafeCraftAction(craft, step, highPrioProgress), "mid pre quality: high-prio progress");
-        if (step.IQStacks < 10 && SolveMidHighPriorityIQ(cfg, step, allowPrecise) is var highPrioIQ && highPrioIQ != Skills.None)
+        if (step.IQStacks < 10 && SolveMidHighPriorityIQ(cfg, craft, step, allowPrecise) is var highPrioIQ && highPrioIQ != Skills.None)
             return new(highPrioIQ, "mid pre quality: high-prio iq");
         if (step.Condition == Condition.Good)
             return new(Skills.TricksOfTrade, "mid pre quality: high-prio tricks"); // progress/iq below decided not to use good, so spend it on tricks
@@ -364,8 +363,8 @@ public class ExpertSolver : Solver
             // TODO: consider good/sturdy prep or good tricks - do we want that without inno? some quick simulation shows it to be a slight loss...
             if (step.Condition == Condition.Good && CanUseActionSafelyInFinisher(step, Skills.PreciseTouch, freeCP))
                 return new(Skills.PreciseTouch, "mid quality gs-only: utilize good");
-            if (step.PrevComboAction == Skills.Observe && CanUseActionSafelyInFinisher(step, Skills.FocusedTouch, freeCP))
-                return new(Skills.FocusedTouch, "mid quality gs-only: after observe?"); // this is weird, why would we do gs->observe?.. maybe we're low on cp?
+            if (step.PrevComboAction == Skills.Observe && CanUseActionSafelyInFinisher(step, Skills.AdvancedTouch, freeCP))
+                return new(Skills.AdvancedTouch, "mid quality gs-only: after observe?"); // this is weird, why would we do gs->observe?.. maybe we're low on cp?
 
             if (step.GreatStridesLeft == 1)
             {
@@ -436,8 +435,8 @@ public class ExpertSolver : Solver
                 return new(Skills.GreatStrides, "mid quality: good omen gs");
         }
 
-        if (step.PrevComboAction == Skills.Observe && CanUseActionSafelyInFinisher(step, Skills.FocusedTouch, freeCP))
-            return new(Skills.FocusedTouch, "mid quality"); // complete focused half-combo
+        if (step.PrevComboAction == Skills.Observe && CanUseActionSafelyInFinisher(step, Skills.AdvancedTouch, freeCP))
+            return new(Skills.AdvancedTouch, "mid quality"); // complete focused half-combo
 
         // try spending some durability for using some other half-combo action:
         // - observe + focused if we have enough time on gs/inno is 150p for 25cp
@@ -596,7 +595,7 @@ public class ExpertSolver : Solver
         return Skills.None;
     }
 
-    private static Skills SolveMidHighPriorityIQ(ExpertSolverSettings cfg, StepState step, bool allowPrecise)
+    private static Skills SolveMidHighPriorityIQ(ExpertSolverSettings cfg, CraftState craft, StepState step, bool allowPrecise)
     {
         if (step.Condition is Condition.Good or Condition.Excellent && allowPrecise && step.Durability > Simulator.GetDurabilityCost(step, Skills.PreciseTouch))
             return Skills.PreciseTouch;
@@ -605,7 +604,7 @@ public class ExpertSolver : Solver
         if (step.Condition == Condition.Sturdy && cfg.MidAllowSturdyPreсise && (step.HeartAndSoulActive || step.HeartAndSoulAvailable) && step.Durability > Simulator.GetDurabilityCost(step, Skills.PreciseTouch))
             return step.HeartAndSoulActive ? Skills.PreciseTouch : Skills.HeartAndSoul;
         if (step.Condition == Condition.Sturdy && step.Durability > Simulator.GetDurabilityCost(step, Skills.HastyTouch))
-            return cfg.MidAllowSturdyHasty ? Skills.HastyTouch : Simulator.NextTouchCombo(step);
+            return cfg.MidAllowSturdyHasty ? Skills.HastyTouch : Simulator.NextTouchCombo(step, craft);
         return Skills.None;
     }
 
@@ -706,9 +705,6 @@ public class ExpertSolver : Solver
         // best possible use of malleable is hs+intensive - but only bother if careful won't suffice
         if (step.Condition == Condition.Malleable && CanUseSynthForFinisher(craft, step, Skills.IntensiveSynthesis) && (step.HeartAndSoulAvailable || step.HeartAndSoulActive) && step.Progress + Simulator.CalculateProgress(craft, step, step.RemainingCP >= 7 ? Skills.CarefulSynthesis : Skills.BasicSynthesis) < craft.CraftProgress)
             return step.HeartAndSoulActive ? Skills.IntensiveSynthesis : Skills.HeartAndSoul;
-
-        if (step.PrevComboAction == Skills.Observe && CanUseSynthForFinisher(craft, step, Skills.FocusedSynthesis))
-            return Skills.FocusedSynthesis;
 
         if (step.Condition is Condition.Normal or Condition.Pliant or Condition.Centered or Condition.Primed && step.ManipulationLeft > 0 && step.Durability <= 10 && step.RemainingCP >= Simulator.GetCPCost(step, Skills.Observe) + 5)
             return Skills.Observe; // regen a bit of dura and use focused

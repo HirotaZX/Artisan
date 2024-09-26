@@ -26,11 +26,11 @@ namespace Artisan.CraftingLogic
         {
             switch (id)
             {
+                case Skills.TouchCombo:
                 case Skills.BasicSynthesis:
                 case Skills.RapidSynthesis:
                 case Skills.MuscleMemory:
                 case Skills.CarefulSynthesis:
-                case Skills.FocusedSynthesis:
                 case Skills.Groundwork:
                 case Skills.DelicateSynthesis:
                 case Skills.IntensiveSynthesis:
@@ -40,7 +40,6 @@ namespace Artisan.CraftingLogic
                 case Skills.StandardTouch:
                 case Skills.PreciseTouch:
                 case Skills.PrudentTouch:
-                case Skills.FocusedTouch:
                 case Skills.Reflect:
                 case Skills.PreparatoryTouch:
                 case Skills.AdvancedTouch:

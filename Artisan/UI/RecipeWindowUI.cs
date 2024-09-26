@@ -28,6 +28,7 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Web;
 using static ECommons.GenericHelpers;
 
 namespace Artisan
@@ -48,7 +49,7 @@ namespace Artisan
                 }
             }
         }
-        public RecipeWindowUI() : base($"###RecipeWindow", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoNavInputs)
+        public RecipeWindowUI() : base($"###RecipeWindow", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoNavInputs | ImGuiWindowFlags.NoNavFocus | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoFocusOnAppearing)
         {
             this.Size = new Vector2(0, 0);
             this.Position = new Vector2(0, 0);
@@ -66,11 +67,8 @@ namespace Artisan
         {
             if (Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.BetweenAreas]) return;
 
-            if (!P.Config.DisableMiniMenu)
-            {
-                if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.Crafting] || Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.PreparingToCraft])
-                    DrawOptions();
-            }
+            if (!Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.Crafting] || Svc.Condition[Dalamud.Game.ClientState.Conditions.ConditionFlag.PreparingToCraft])
+                DrawOptions();
 
             DrawSearchReplace();
 
@@ -124,13 +122,13 @@ namespace Artisan
                     var compNode = (AtkComponentNode*)searchNode;
                     if (compNode->Component->UldManager.SearchNodeById(18) == null) return;
 
-                    searched = !compNode->Component->UldManager.SearchNodeById(18)->IsVisible;
+                    searched = !compNode->Component->UldManager.SearchNodeById(18)->IsVisible();
 
                     if (Search.Length > 0 && !searched)
                     {
                         if (LuminaSheets.RecipeSheet.Values.Count(x => Regex.Match(x.ItemResult.Value.Name.RawString, Search, RegexOptions.IgnoreCase).Success) > 0)
                         {
-                            ImGui.Begin($"###Search{searchNode->NodeID}", ImGuiWindowFlags.NoScrollbar
+                            ImGui.Begin($"###Search{searchNode->NodeId}", ImGuiWindowFlags.NoScrollbar
                                 | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoNavFocus
                                 | ImGuiWindowFlags.AlwaysUseWindowPadding | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoSavedSettings);
 
@@ -179,7 +177,7 @@ namespace Artisan
                     if (addon->SupplyRadioButton is null)
                         return;
 
-                    if (addon->SupplyRadioButton->AtkComponentBase.UldManager.NodeList[1] != null && addon->SupplyRadioButton->AtkComponentBase.UldManager.NodeList[1]->IsVisible)
+                    if (addon->SupplyRadioButton->UldManager.NodeList[1] != null && addon->SupplyRadioButton->UldManager.NodeList[1]->IsVisible())
                         return;
 
                     var timerWindow = Svc.GameGui.GetAddonByName("GrandCompanySupplyList");
@@ -189,7 +187,7 @@ namespace Artisan
                     var atkUnitBase = (AtkUnitBase*)timerWindow;
                     var node = atkUnitBase->UldManager.NodeList[19];
 
-                    if (!node->IsVisible)
+                    if (!node->IsVisible())
                         return;
 
                     var position = AtkResNodeFunctions.GetNodePosition(node);
@@ -278,7 +276,7 @@ namespace Artisan
 
                     var node = atkUnitBase->UldManager.NodeList[97];
 
-                    if (!node->IsVisible)
+                    if (!node->IsVisible())
                         return;
 
                     var position = AtkResNodeFunctions.GetNodePosition(node);
@@ -364,14 +362,14 @@ namespace Artisan
                 if (atkUnitBase->AtkValues[i].Type == 0)
                     continue;
 
-                var itemId = atkUnitBase->AtkValues[i].Int;
+                var ItemId = atkUnitBase->AtkValues[i].Int;
                 var requested = atkUnitBase->AtkValues[i - 40].Int;
                 uint job = TextureIdToJob(atkUnitBase->AtkValues[i - 360].Int);
                 bool starred = atkUnitBase->AtkValues[i - 400].Byte == 1;
 
                 if (!boostedCraftsOnly || (boostedCraftsOnly && starred))
                 {
-                    if (LuminaSheets.RecipeSheet.Values.FindFirst(x => x.ItemResult.Row == itemId && x.CraftType.Row + 8 == job, out var recipe))
+                    if (LuminaSheets.RecipeSheet.Values.FindFirst(x => x.ItemResult.Row == ItemId && x.CraftType.Row + 8 == job, out var recipe))
                     {
                         var timesToAdd = requested / recipe.AmountResult;
 
@@ -423,14 +421,14 @@ namespace Artisan
                 if (atkUnitBase->AtkValues[i].Type == 0)
                     continue;
 
-                var itemId = atkUnitBase->AtkValues[i].Int;
+                var ItemId = atkUnitBase->AtkValues[i].Int;
                 var requested = atkUnitBase->AtkValues[i + 16].Int;
                 uint job = TextureIdToJob(atkUnitBase->AtkValues[i + 8].Int);
                 bool starred = atkUnitBase->AtkValues[i + 40].Byte == 1;
 
                 if (!boostedCraftOnly || (boostedCraftOnly && starred))
                 {
-                    if (LuminaSheets.RecipeSheet.Values.FindFirst(x => x.ItemResult.Row == itemId && x.CraftType.Row + 8 == job, out var recipe))
+                    if (LuminaSheets.RecipeSheet.Values.FindFirst(x => x.ItemResult.Row == ItemId && x.CraftType.Row + 8 == job, out var recipe))
                     {
                         var timesToAdd = requested / recipe.AmountResult;
 
@@ -472,7 +470,7 @@ namespace Artisan
 
                 var node = addonPtr->UldManager.NodeList[2];
 
-                if (!node->IsVisible)
+                if (!node->IsVisible())
                     return;
 
                 var position = AtkResNodeFunctions.GetNodePosition(node);
@@ -493,7 +491,7 @@ namespace Artisan
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(3f, 3f));
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, new Vector2(0f, 0f));
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
-                ImGui.Begin($"###WorkshopButton{node->NodeID}", ImGuiWindowFlags.NoScrollbar
+                ImGui.Begin($"###WorkshopButton{node->NodeId}", ImGuiWindowFlags.NoScrollbar
                     | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoNavFocus
                     | ImGuiWindowFlags.AlwaysUseWindowPadding | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoSavedSettings);
 
@@ -612,11 +610,11 @@ namespace Artisan
 
             if (addonPtr->UldManager.NodeListCount > 1)
             {
-                if (addonPtr->UldManager.NodeList[1]->IsVisible)
+                if (addonPtr->UldManager.NodeList[1]->IsVisible())
                 {
                     var node = addonPtr->UldManager.NodeList[1];
 
-                    if (!node->IsVisible)
+                    if (!node->IsVisible())
                         return;
 
                     if (P.Config.LockMiniMenuR)
@@ -646,7 +644,7 @@ namespace Artisan
                     if (P.Config.PinMiniMenu)
                         flags |= ImGuiWindowFlags.NoMove;
 
-                    ImGui.Begin($"###Options{node->NodeID}", flags);
+                    ImGui.Begin($"###Options{node->NodeId}", flags);
 
 
                     DrawCopyOfCraftMenu();
@@ -688,8 +686,9 @@ namespace Artisan
 
                 if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                 {
+                    var recipe = LuminaSheets.RecipeSheet!.First(x => x.Key == Endurance.RecipeID).Value;
                     ImGui.BeginTooltip();
-                    ImGui.Text($"You cannot start Endurance as you do not possess ingredients to craft this recipe.");
+                    ImGui.Text($"You cannot start Endurance as you do not possess ingredients to craft this recipe.\r\nMissing: {string.Join(", ", PreCrafting.MissingIngredients(recipe))}");
                     ImGui.EndTooltip();
                 }
             }
@@ -708,11 +707,11 @@ namespace Artisan
             var baseX = addonPtr->X;
             var baseY = addonPtr->Y;
 
-            if (addonPtr->UldManager.NodeListCount >= 2 && addonPtr->UldManager.NodeList[1]->IsVisible)
+            if (addonPtr->UldManager.NodeListCount >= 2 && addonPtr->UldManager.NodeList[1]->IsVisible())
             {
                 var node = addonPtr->UldManager.NodeList[1];
 
-                if (!node->IsVisible)
+                if (!node->IsVisible())
                     return;
 
                 var position = AtkResNodeFunctions.GetNodePosition(node);
@@ -734,7 +733,7 @@ namespace Artisan
                 //Svc.Log.Debug($"{position.X + node->Width + 7}");
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(7f, 7f));
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, new Vector2(0f, 0f));
-                ImGui.Begin($"###Options{node->NodeID}", ImGuiWindowFlags.NoScrollbar
+                ImGui.Begin($"###Options{node->NodeId}", ImGuiWindowFlags.NoScrollbar
                     | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.AlwaysUseWindowPadding);
 
                 ImGui.Spacing();
@@ -760,45 +759,7 @@ namespace Artisan
 
                     if (!P.Config.HideRecipeWindowSimulator)
                     {
-                        var solver = CraftingProcessor.GetSolverForRecipe(config, craft).CreateSolver(craft);
-                        var rd = RecipeNoteRecipeData.Ptr();
-                        var re = rd != null ? rd->FindRecipeById(recipe.RowId) : null;
-                        var startingQuality = re != null ? Calculations.GetStartingQuality(recipe, re->GetAssignedHQIngredients()) : 0;
-                        var time = SolverUtils.EstimateCraftTime(solver, craft, startingQuality);
-                        var result = SolverUtils.SimulateSolverExecution(solver, craft, startingQuality);
-                        var status = result != null ? Simulator.Status(craft, result) : Simulator.CraftStatus.InProgress;
-                        var hq = result != null ? Calculations.GetHQChance((float)result.Quality / craft.CraftQualityMax * 100) : 0;
-
-                        string solverHint = status switch
-                        {
-                            Simulator.CraftStatus.InProgress => "Craft did not finish (solver failed to return any more steps before finishing).",
-                            Simulator.CraftStatus.FailedDurability => $"Craft failed due to durability shortage. (P: {(float)result.Progress / craft.CraftProgress * 100:f0}%, Q: {(float)result.Quality / craft.CraftQualityMax * 100:f0}%)",
-                            Simulator.CraftStatus.FailedMinQuality => "Craft completed but didn't meet minimum quality.",
-                            Simulator.CraftStatus.SucceededQ1 => $"Craft completed and managed to hit 1st quality threshold in {time.TotalSeconds:f0}s.",
-                            Simulator.CraftStatus.SucceededQ2 => $"Craft completed and managed to hit 2nd quality threshold in {time.TotalSeconds:f0}s.",
-                            Simulator.CraftStatus.SucceededQ3 => $"Craft completed and managed to hit 3rd quality threshold in {time.TotalSeconds:f0}s!",
-                            Simulator.CraftStatus.SucceededMaxQuality => $"Craft completed with full quality in {time.TotalSeconds:f0}s!",
-                            Simulator.CraftStatus.SucceededSomeQuality => $"Craft completed but didn't max out quality ({hq}%) in {time.TotalSeconds:f0}s",
-                            Simulator.CraftStatus.SucceededNoQualityReq => $"Craft completed, no quality required in {time.TotalSeconds:f0}s!",
-                            Simulator.CraftStatus.Count => "You shouldn't be able to see this. Report it please.",
-                            _ => "You shouldn't be able to see this. Report it please.",
-                        };
-
-
-                        Vector4 hintColor = status switch
-                        {
-                            Simulator.CraftStatus.InProgress => ImGuiColors.DalamudWhite,
-                            Simulator.CraftStatus.FailedDurability => ImGuiColors.DalamudRed,
-                            Simulator.CraftStatus.FailedMinQuality => ImGuiColors.DalamudRed,
-                            Simulator.CraftStatus.SucceededQ1 => new Vector4(0.7f, 0.5f, 0.5f, 1f),
-                            Simulator.CraftStatus.SucceededQ2 => new Vector4(0.5f, 0.5f, 0.7f, 1f),
-                            Simulator.CraftStatus.SucceededQ3 => new Vector4(0.5f, 1f, 0.5f, 1f),
-                            Simulator.CraftStatus.SucceededMaxQuality => ImGuiColors.ParsedGreen,
-                            Simulator.CraftStatus.SucceededSomeQuality => new Vector4(1 - (hq / 100f), 0 + (hq / 100f), 1 - (hq / 100f), 255),
-                            Simulator.CraftStatus.SucceededNoQualityReq => ImGuiColors.ParsedGreen,
-                            Simulator.CraftStatus.Count => ImGuiColors.DalamudWhite,
-                            _ => ImGuiColors.DalamudWhite,
-                        };
+                        var solverHint = Simulator.SimulatorResult(recipe, config, craft, out var hintColor);
 
                         if (!recipe.IsExpert)
                             ImGuiEx.TextWrapped(hintColor, solverHint);
@@ -826,7 +787,7 @@ namespace Artisan
                                 SimulatorUI.SimFood.Stats = new ConsumableStats(config.RequiredFood, config.RequiredFoodHQ);
                             }
 
-                            foreach (ref var gs in RaptureGearsetModule.Instance()->EntriesSpan)
+                            foreach (ref var gs in RaptureGearsetModule.Instance()->Entries)
                             {
                                 if ((Job)gs.ClassJob == Job.CRP + recipe.CraftType.Row)
                                 {
@@ -905,7 +866,7 @@ namespace Artisan
             ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, new Vector2(0f, 0f));
             ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
 
-            ImGui.Begin($"###Repeat{node->NodeID}", ImGuiWindowFlags.NoScrollbar
+            ImGui.Begin($"###Repeat{node->NodeId}", ImGuiWindowFlags.NoScrollbar
                 | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoNavFocus
                 | ImGuiWindowFlags.AlwaysUseWindowPadding | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoSavedSettings);
 
@@ -917,7 +878,7 @@ namespace Artisan
                 ImGui.Text("Craft X Times:");
                 ImGui.SameLine();
                 ImGui.PushItemWidth(110f * scale.X);
-                if (ImGui.InputInt($"###TimesRepeat{node->NodeID}", ref P.Config.CraftX))
+                if (ImGui.InputInt($"###TimesRepeat{node->NodeId}", ref P.Config.CraftX))
                 {
                     if (P.Config.CraftX < 0)
                         P.Config.CraftX = 0;

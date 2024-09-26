@@ -2,19 +2,20 @@
 using Artisan.GameInterop;
 using Artisan.RawInformation;
 using Artisan.RawInformation.Character;
-using ClickLib.Clicks;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using ECommons;
 using ECommons.Automation;
+using ECommons.Automation.LegacyTaskManager;
+using ECommons.Automation.UIInput;
 using ECommons.DalamudServices;
 using ECommons.ExcelServices;
 using ECommons.Logging;
+using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.GeneratedSheets;
 using System;
@@ -98,7 +99,7 @@ namespace Artisan.CraftingLists
 
         public static TaskManager CLTM = new();
 
-        public static TimeSpan ListEndTime;
+        public static TimeSpan ListEndTime = default(TimeSpan);
 
         public static void SetID(this NewCraftingList list)
         {
@@ -196,7 +197,19 @@ namespace Artisan.CraftingLists
 
             if (CurrentIndex < selectedList.ExpandedList.Count)
             {
-                CraftingListUI.CurrentProcessedItem = selectedList.ExpandedList[CurrentIndex];
+                if (CraftingListUI.CurrentProcessedItem != selectedList.ExpandedList[CurrentIndex])
+                {
+                    CraftingListUI.CurrentProcessedItem = selectedList.ExpandedList[CurrentIndex];
+                    CraftingListUI.CurrentProcessedItemCount = 1;
+                    CraftingListUI.CurrentProcessedItemIndex = CurrentIndex;
+                    CraftingListUI.CurrentProcessedItemListCount = selectedList.ExpandedList.Count(v => v == CraftingListUI.CurrentProcessedItem);
+
+                }
+                else if (CraftingListUI.CurrentProcessedItemIndex != CurrentIndex)
+                {
+                    CraftingListUI.CurrentProcessedItemIndex = CurrentIndex;
+                    CraftingListUI.CurrentProcessedItemCount++;
+                }
             }
             else
             {
@@ -259,8 +272,8 @@ namespace Artisan.CraftingLists
 
             if (selectedList.SkipIfEnough && (preparing || !isCrafting))
             {
-                var itemId = recipe.ItemResult.Row;
-                int numMats = Materials.Any(x => x.Key == recipe.ItemResult.Row) && !selectedList.SkipLiteral ? Materials.First(x => x.Key == recipe.ItemResult.Row).Value : selectedList.ExpandedList.Count(x => LuminaSheets.RecipeSheet[x].ItemResult.Row == itemId) * recipe.AmountResult;
+                var ItemId = recipe.ItemResult.Row;
+                int numMats = Materials.Any(x => x.Key == recipe.ItemResult.Row) && !selectedList.SkipLiteral ? Materials.First(x => x.Key == recipe.ItemResult.Row).Value : selectedList.ExpandedList.Count(x => LuminaSheets.RecipeSheet[x].ItemResult.Row == ItemId) * recipe.AmountResult;
                 if (numMats <= CraftingListUI.NumberOfIngredient(recipe.ItemResult.Row))
                 {
                     DuoLog.Error($"Skipping {recipe.ItemResult.Value.Name} due to having enough in inventory [Skip Items you already have enough of]");
@@ -343,17 +356,22 @@ namespace Artisan.CraftingLists
             {
                 selectedList.Recipes.First(x => x.ID == CraftingListUI.CurrentProcessedItem).ListItemOptions = new ListItemOptions();
             }
-            bool needConsumables = (type == PreCrafting.CraftType.Normal || (type == PreCrafting.CraftType.Quick && P.Config.UseConsumablesQuickSynth)) && (!ConsumableChecker.IsFooded(config) || !ConsumableChecker.IsPotted(config) || !ConsumableChecker.IsManualled(config) || !ConsumableChecker.IsSquadronManualled(config));
-            bool hasConsumables = config != default ? ConsumableChecker.HasItem(config.RequiredFood, config.RequiredFoodHQ) && ConsumableChecker.HasItem(config.RequiredPotion, config.RequiredPotionHQ) && ConsumableChecker.HasItem(config.RequiredManual, false) && ConsumableChecker.HasItem(config.RequiredSquadronManual, false) : true;
+            bool needConsumables = PreCrafting.NeedsConsumablesCheck(type, config);
+            bool hasConsumables = PreCrafting.HasConsumablesCheck(config);
 
             if (P.Config.AbortIfNoFoodPot && needConsumables && !hasConsumables)
             {
-                DuoLog.Error($"Can't craft {recipe.ItemResult.Value?.Name}: required consumables not up");
-                Paused = true;
+                PreCrafting.MissingConsumablesMessage(recipe, config);
+                Paused = false;
                 return;
             }
 
-            if (needConsumables && hasConsumables)
+            bool needFood = config != default && ConsumableChecker.HasItem(config.RequiredFood, config.RequiredFoodHQ) && !ConsumableChecker.IsFooded(config);
+            bool needPot = config != default && ConsumableChecker.HasItem(config.RequiredPotion, config.RequiredPotionHQ) && !ConsumableChecker.IsPotted(config);
+            bool needManual = config != default && ConsumableChecker.HasItem(config.RequiredManual, false) && !ConsumableChecker.IsManualled(config);
+            bool needSquadronManual = config != default && ConsumableChecker.HasItem(config.RequiredSquadronManual, false) && !ConsumableChecker.IsSquadronManualled(config);
+
+            if (needFood || needPot || needManual || needSquadronManual)
             {
                 if (!CLTM.IsBusy && !PreCrafting.Occupied())
                 {
@@ -392,7 +410,7 @@ namespace Artisan.CraftingLists
                     }
                     else if (type == PreCrafting.CraftType.Normal)
                     {
-                        CLTM.DelayNext((int)(P.Config.ListCraftThrottle * 1000));
+                        CLTM.DelayNext((int)(Math.Min(P.Config.ListCraftThrottle2, 2) * 1000));
                         CLTM.Enqueue(() => SetIngredients(), "SettingIngredients");
                         CLTM.Enqueue(() => Operations.RepeatActualCraft(), "ListCraft");
                         CLTM.Enqueue(() => Crafting.CurState is Crafting.State.InProgress or Crafting.State.QuickCraft, 2000, "ListNormalWaitStart");
@@ -439,32 +457,32 @@ namespace Artisan.CraftingLists
             if (recipe == null)
                 return false;
 
-            if (TryGetAddonByName<AddonRecipeNoteFixed>("RecipeNote", out var addon) &&
+            if (TryGetAddonByName<AddonRecipeNote>("RecipeNote", out var addon) &&
                 addon->AtkUnitBase.IsVisible &&
                 AgentRecipeNote.Instance() != null &&
                 RaptureAtkModule.Instance()->AtkModule.IsAddonReady(AgentRecipeNote.Instance()->AgentInterface.AddonId))
             {
                 if (setIngredients == null)
                 {
-                    for (var i = 0; i <= 5; i++)
+                    for (uint i = 0; i <= 5; i++)
                     {
                         try
                         {
                             var node = addon->AtkUnitBase.UldManager.NodeList[23 - i]->GetAsAtkComponentNode();
 
-                            if (node is null || !node->AtkResNode.IsVisible)
+                            if (node is null || !node->AtkResNode.IsVisible())
                             {
                                 continue;
                             }
 
-                            if (node->Component->UldManager.NodeList[11]->IsVisible)
+                            if (node->Component->UldManager.NodeList[11]->IsVisible())
                             {
                                 var ingredient = LuminaSheets.RecipeSheet.Values.Where(x => x.RowId == Endurance.RecipeID).FirstOrDefault().UnkData5[i].ItemIngredient;
 
                                 var btn = node->Component->UldManager.NodeList[14]->GetAsAtkComponentButton();
                                 try
                                 {
-                                    btn->ClickAddonButton((AtkComponentBase*)addon, 4);
+                                    btn->ClickAddonButton((AtkComponentBase*)addon, 4, EventType.CHANGE);
                                 }
                                 catch (Exception ex)
                                 {
@@ -480,12 +498,12 @@ namespace Artisan.CraftingLists
                             {
                                 for (int m = 0; m <= 100; m++)
                                 {
-                                    ClickRecipeNote.Using((IntPtr)addon).Material(i, false);
+                                    new AddonMaster.RecipeNote((IntPtr)addon).Material(i, false);
                                 }
 
                                 for (int m = 0; m <= 100; m++)
                                 {
-                                    ClickRecipeNote.Using((IntPtr)addon).Material(i, true);
+                                    new AddonMaster.RecipeNote((IntPtr)addon).Material(i, true);
                                 }
                             }
 
@@ -498,7 +516,7 @@ namespace Artisan.CraftingLists
                 }
                 else
                 {
-                    for (var i = 0; i <= 5; i++)
+                    for (uint i = 0; i <= 5; i++)
                     {
                         try
                         {
@@ -506,7 +524,7 @@ namespace Artisan.CraftingLists
                             if (node->Component->UldManager.NodeListCount < 16)
                                 return false;
 
-                            if (node is null || !node->AtkResNode.IsVisible)
+                            if (node is null || !node->AtkResNode.IsVisible())
                             {
                                 continue;
                             }
@@ -524,12 +542,12 @@ namespace Artisan.CraftingLists
                             {
                                 for (int h = hqSet; h < setIngredients.First(x => x.IngredientSlot == i).HQSet; h++)
                                 {
-                                    ClickRecipeNote.Using((IntPtr)addon).Material(i, true);
+                                    new AddonMaster.RecipeNote((IntPtr)addon).Material(i, true);
                                 }
 
                                 for (int h = nqSet; h < setIngredients.First(x => x.IngredientSlot == i).NQSet; h++)
                                 {
-                                    ClickRecipeNote.Using((IntPtr)addon).Material(i, false);
+                                    new AddonMaster.RecipeNote((IntPtr)addon).Material(i, false);
                                 }
                             }
                         }
@@ -546,34 +564,6 @@ namespace Artisan.CraftingLists
             }
 
             return true;
-        }
-
-        public static bool SwitchJobGearset(uint cjID)
-        {
-            var gs = GetGearsetForClassJob(cjID);
-            if (gs is null) return false;
-
-            if (Throttler.Throttle(1000))
-            {
-                CommandProcessor.ExecuteThrottled($"/gearset change {gs.Value + 1}");
-            }
-
-            return true;
-        }
-
-        private static unsafe byte? GetGearsetForClassJob(uint cjId)
-        {
-            var gearsetModule = RaptureGearsetModule.Instance();
-            for (var i = 0; i < 100; i++)
-            {
-                var gearset = gearsetModule->GetGearset(i);
-                if (gearset == null) continue;
-                if (!gearset->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists)) continue;
-                if (gearset->ID != i) continue;
-                if (gearset->ClassJob == cjId) return gearset->ID;
-            }
-
-            return null;
         }
     }
 }

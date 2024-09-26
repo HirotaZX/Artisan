@@ -3,10 +3,6 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ECommons.DalamudServices;
 
 namespace Artisan.IPC
@@ -15,7 +11,7 @@ namespace Artisan.IPC
 
     internal class Chat2IPC
     {
-        public Chat2IPC(DalamudPluginInterface pi)
+        public Chat2IPC(IDalamudPluginInterface pi)
         {
             Register = pi.GetIpcSubscriber<string>("ChatTwo.Register");
             Unregister = pi.GetIpcSubscriber<string, object?>("ChatTwo.Unregister");

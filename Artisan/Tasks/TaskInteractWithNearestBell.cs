@@ -1,5 +1,4 @@
-﻿using ECommons.Automation;
-using ECommons.DalamudServices;
+﻿using ECommons.DalamudServices;
 using ECommons.Reflection;
 using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
@@ -11,6 +10,7 @@ using Artisan.IPC;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using ECommons.Automation.LegacyTaskManager;
 
 namespace Artisan.Tasks;
 

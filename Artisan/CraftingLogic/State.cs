@@ -33,7 +33,7 @@ public record class CraftState
     public int CraftQualityMin3;
     public int CraftRequiredQuality;
     public int CraftRecommendedCraftsmanship;
-    public int CraftRecommendedControl;
+    //public int CraftRecommendedControl;
     public float[] CraftConditionProbabilities = { }; // TODO: this assumes that new condition does not depend on prev - this is what my preliminary findings suggest (except for forced transitions)
 
     public static float[] NormalCraftConditionProbabilities(int statLevel) => [1, statLevel >= 63 ? 0.25f : 0.2f, 0.04f];
@@ -62,6 +62,10 @@ public record class StepState
     public bool HeartAndSoulActive;
     public bool HeartAndSoulAvailable;
     public bool PrevActionFailed;
+    public int ExpedienceLeft;
+    public bool QuickInnoAvailable;
+    public bool TrainedPerfectionAvailable;
+    public bool TrainedPerfectionActive;
     public Skills PrevComboAction;
 
     public override string ToString() => $"#{Index} {Condition}: {Progress}/{Quality}/{Durability}/{RemainingCP}; {BuffsString()}; Prev={PrevComboAction}{(PrevActionFailed ? " (failed)" : "")}";

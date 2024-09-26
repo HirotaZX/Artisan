@@ -155,7 +155,7 @@ namespace Artisan.UI
         {
             IEnumerable<Lumina.Excel.GeneratedSheets.Recipe> filteredRecipes = LuminaSheets.RecipeSheet.Values;
 
-            if (ImGui.SliderInt($"{LuminaSheets.AddonSheet[335].Text}", ref quickAssignLevel, 1, 90))
+            if (ImGui.SliderInt($"{LuminaSheets.AddonSheet[335].Text}", ref quickAssignLevel, 1, 100))
             {
                 quickAssignPossibleDifficulties.Clear();
                 quickAssignPossibleQualities.Clear();
@@ -372,6 +372,10 @@ namespace Artisan.UI
             int output = 0;
             foreach (var step in m.Steps)
             {
+                if (step.Action == Skills.TouchCombo)
+                {
+                    output += 18;
+                }
                 output += Simulator.GetBaseCPCost(step.Action, previousAction);
                 previousAction = step.Action;
             }

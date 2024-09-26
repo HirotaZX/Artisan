@@ -83,8 +83,8 @@ public static unsafe class Crafting
             StatCraftsmanship = stats.Craftsmanship,
             StatControl = stats.Control,
             StatCP = stats.CP,
-            StatLevel = CharacterInfo.JobLevel(job),
-            UnlockedManipulation = CharacterInfo.IsManipulationUnlocked(job),
+            StatLevel = stats.Level == default ? CharacterInfo.JobLevel(job) : stats.Level,
+            UnlockedManipulation = stats.Manipulation,
             Specialist = stats.Specialist,
             Splendorous = stats.Splendorous,
             CraftCollectible = recipe.ItemResult.Value?.IsCollectable ?? false,
@@ -99,10 +99,9 @@ public static unsafe class Crafting
             CraftQualityMax = Calculations.RecipeMaxQuality(recipe),
             CraftRequiredQuality = (int)recipe.RequiredQuality,
             CraftRecommendedCraftsmanship = lt?.SuggestedCraftsmanship ?? 0,
-            CraftRecommendedControl = lt?.SuggestedControl ?? 0,
             CraftHQ = recipe.CanHq,
         };
-        
+
         if (res.CraftCollectible)
         {
             // Check regular collectibles first
@@ -412,7 +411,7 @@ public static unsafe class Crafting
         //var succeededNQ = quickSynthWindow->AtkValues[5].Int;
         //var succeededHQ = quickSynthWindow->AtkValues[8].Int;
         //var failed = quickSynthWindow->AtkValues[6].Int;
-        //var itemId = quickSynthWindow->AtkValues[7].UInt;
+        //var ItemId = quickSynthWindow->AtkValues[7].UInt;
         return (cur, max);
     }
 
@@ -450,6 +449,10 @@ public static unsafe class Crafting
         CarefulObservationLeft = ActionManagerEx.CanUseSkill(Skills.CarefulObservation) ? 1 : 0,
         HeartAndSoulActive = GetStatus(Buffs.HeartAndSoul) != null,
         HeartAndSoulAvailable = ActionManagerEx.CanUseSkill(Skills.HeartAndSoul),
+        QuickInnoAvailable = ActionManagerEx.CanUseSkill(Skills.QuickInnovation),
+        TrainedPerfectionActive = GetStatus(Buffs.TrainedPerfection) != null,
+        TrainedPerfectionAvailable = ActionManagerEx.CanUseSkill(Skills.TrainedPerfection),
+        ExpedienceLeft = GetStatus(Buffs.Expedience)?.StackCount ?? 0,
         PrevActionFailed = prevActionFailed,
         PrevComboAction = prevAction,
     };

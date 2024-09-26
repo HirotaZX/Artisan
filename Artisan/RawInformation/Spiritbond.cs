@@ -1,7 +1,8 @@
 ﻿using Artisan.GameInterop;
 using Artisan.RawInformation.Character;
-using ClickLib.Clicks;
 using ECommons.DalamudServices;
+using ECommons.GameHelpers;
+using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using System;
@@ -84,7 +85,7 @@ namespace Artisan.RawInformation
                 if (materalizeWindow == null)
                     return;
 
-                ClickMaterializeDialog.Using(materializePTR).Materialize();
+                new AddonMaster.MaterializeDialog(materializePTR).Materialize();
             }
             catch
             {
@@ -97,7 +98,7 @@ namespace Artisan.RawInformation
         public unsafe static bool ExtractMateriaTask(bool option)
         {
             if (!CharacterInfo.MateriaExtractionUnlocked()) return true;
-
+            if (CharacterOther.GetInventoryFreeSlotCount() == 0) return true;
 
             if (option)
             {

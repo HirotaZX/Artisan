@@ -1,20 +1,20 @@
 ﻿using Artisan.IPC;
 using Artisan.RawInformation;
-using ClickLib.Clicks;
-using ClickLib.Enums;
-using ClickLib.Structures;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Utility;
 using ECommons.Automation;
+using ECommons.Automation.LegacyTaskManager;
 using ECommons.DalamudServices;
 using ECommons.Events;
+using ECommons.UIHelpers.AddonMasterImplementations;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using SharpDX.Direct2D1.Effects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,6 +22,8 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using static ECommons.GenericHelpers;
 using MemoryHelper = Dalamud.Memory.MemoryHelper;
+using ECommons.Automation.UIInput;
+using Artisan.Autocraft;
 
 
 namespace Artisan.Tasks;
@@ -37,31 +39,6 @@ internal static class TaskSelectRetainer
 
 internal unsafe static class RetainerListHandlers
 {
-    internal static bool? SelectRetainerByName(string name)
-    {
-        if (TryGetAddonByName<AtkUnitBase>("RetainerList", out var retainerList) && IsAddonReady(retainerList))
-        {
-            var list = (AtkComponentNode*)retainerList->UldManager.NodeList[2];
-            for (var i = 1u; i < RetainerInfo.retainerManager.Count + 1; i++)
-            {
-                var retainerEntry = (AtkComponentNode*)list->Component->UldManager.NodeList[i];
-                var text = (AtkTextNode*)retainerEntry->Component->UldManager.NodeList[13];
-                var nodeName = text->NodeText.ToString();
-                //P.DebugLog($"Retainer {i} text {nodeName}");
-                if (name == nodeName)
-                {
-                    if (RetainerInfo.GenericThrottle)
-                    {
-                        ClickRetainerList.Using((IntPtr)retainerList).Select(list, retainerEntry, i - 1);
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
     internal static bool? SelectRetainerByID(ulong id)
     {
         string retainerName = "";
@@ -70,23 +47,32 @@ internal unsafe static class RetainerListHandlers
             var retainer = FFXIVClientStructs.FFXIV.Client.Game.RetainerManager.Instance()->GetRetainerBySortedIndex(i);
             if (retainer == null) continue;
 
-            if (retainer->RetainerID == id)
-                retainerName = MemoryHelper.ReadSeStringNullTerminated((IntPtr)retainer->Name).ExtractText();
+            if (retainer->RetainerId == id)
+                retainerName = retainer->NameString;
 
+        }
+
+        return SelectRetainerByName(retainerName);
+    }
+
+
+    internal static bool? SelectRetainerByName(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            throw new Exception($"Name can not be null or empty");
         }
         if (TryGetAddonByName<AtkUnitBase>("RetainerList", out var retainerList) && IsAddonReady(retainerList))
         {
-            var list = (AtkComponentNode*)retainerList->UldManager.NodeList[2];
-            for (var i = 1u; i < RetainerInfo.retainerManager.Count + 1; i++)
+            var list = new AddonMaster.RetainerList(retainerList);
+            foreach (var retainer in list.Retainers)
             {
-                var retainerEntry = (AtkComponentNode*)list->Component->UldManager.NodeList[i];
-                var text = (AtkTextNode*)retainerEntry->Component->UldManager.NodeList[13];
-                var nodeName = text->NodeText.ToString();
-                if (retainerName == nodeName)
+                if (retainer.Name == name)
                 {
                     if (RetainerInfo.GenericThrottle)
                     {
-                        ClickRetainerList.Using((IntPtr)retainerList).Select(list, retainerEntry, i - 1);
+                        Svc.Log.Debug($"Selecting retainer {retainer.Name} with index {retainer.Index}");
+                        retainer.Select();
                         return true;
                     }
                 }
@@ -95,6 +81,7 @@ internal unsafe static class RetainerListHandlers
 
         return false;
     }
+
 
     internal static bool? CloseRetainerList()
     {
@@ -173,6 +160,7 @@ public class SeAddressBase
 
     public SeAddressBase(ISigScanner sigScanner, string signature, int offset = 0)
     {
+        return;
         Address = sigScanner.GetStaticAddressFromSig(signature);
         if (Address != IntPtr.Zero)
             Address += offset;
@@ -230,40 +218,6 @@ public unsafe struct SeRetainer
     }
 }
 
-internal unsafe class ClickRetainerList : ClickLib.Bases.ClickBase<ClickRetainerList, AtkUnitBase>
-{
-    public ClickRetainerList(IntPtr addon = default)
-        : base("RetainerList", addon)
-    {
-    }
-    public static implicit operator ClickRetainerList(IntPtr addon) => new(addon);
-
-    public static ClickRetainerList Using(IntPtr addon) => new(addon);
-
-    public void Select(void* list, AtkComponentNode* target, uint index)
-    {
-        var data = InputData.Empty();
-        data.Data[0] = target;
-        data.Data[2] = (void*)(index | (ulong)index << 48);
-        ClickAddonComponent(target, 1, EventType.LIST_INDEX_CHANGE, null, data);
-    }
-}
-
-internal unsafe class ClickButtonGeneric : ClickLib.Bases.ClickBase<ClickButtonGeneric, AtkUnitBase>
-{
-    internal string Name;
-    public ClickButtonGeneric(void* addon, string name)
-    : base(name, (nint)addon)
-    {
-        Name = name;
-    }
-
-    public void Click(void* target, uint which = 0)
-    {
-        ClickAddonButton((AtkComponentButton*)target, which);
-    }
-}
-
 internal unsafe static class RetainerHandlers
 {
     internal static bool? SelectQuit()
@@ -275,11 +229,11 @@ internal unsafe static class RetainerHandlers
     internal static bool? SelectEntrustItems()
     {
         //2378	Entrust or withdraw items.
-        var text = Svc.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.Addon>().GetRow(2378).Text.ToDalamudString().ExtractText();
+        var text = Svc.Data.GetExcelSheet<Lumina.Excel.GeneratedSheets.Addon>().GetRow(2378).Text.ToDalamudString().ExtractText(true);
         return TrySelectSpecificEntry(text);
     }
 
-    internal static bool? OpenItemContextMenu(uint itemId, bool lookingForHQ, out uint quantity)
+    internal static bool? OpenItemContextMenu(uint ItemId, bool lookingForHQ, out uint quantity)
     {
         quantity = 0;
         var inventories = new List<InventoryType>
@@ -300,20 +254,20 @@ internal unsafe static class RetainerHandlers
             for (int i = 0; i < InventoryManager.Instance()->GetInventoryContainer(inv)->Size; i++)
             {
                 var item = InventoryManager.Instance()->GetInventoryContainer(inv)->GetInventorySlot(i);
-                //Svc.Log.Debug($"ITEM {item->ItemID.NameOfItem()} IN {item->Slot}");
-                if (item->ItemID == itemId && ((lookingForHQ && item->Flags == InventoryItem.ItemFlags.HQ) || (!lookingForHQ)))
+                //Svc.Log.Debug($"ITEM {item->ItemId.NameOfItem()} IN {item->Slot}");
+                if (item->ItemId == ItemId && ((lookingForHQ && item->Flags == InventoryItem.ItemFlags.HighQuality) || (!lookingForHQ)))
                 {
                     quantity = item->Quantity;
                     Svc.Log.Debug($"Found item? {item->Quantity}");
                     var ag = AgentInventoryContext.Instance();
-                    ag->OpenForItemSlot(inv, i, AgentModule.Instance()->GetAgentByInternalId(AgentId.Retainer)->GetAddonID());
+                    ag->OpenForItemSlot(inv, i, AgentModule.Instance()->GetAgentByInternalId(AgentId.Retainer)->GetAddonId());
                     var contextMenu = (AtkUnitBase*)Svc.GameGui.GetAddonByName("ContextMenu", 1);
                     var contextAgent = AgentInventoryContext.Instance();
                     var indexOfRetrieveAll = -1;
                     var indexOfRetrieveQuantity = -1;
 
                     int looper = 0;
-                    foreach (var contextObj in contextAgent->EventParamsSpan)
+                    foreach (var contextObj in contextAgent->EventParams)
                     {
                         if (contextObj.Type == FFXIVClientStructs.FFXIV.Component.GUI.ValueType.String)
                         {
@@ -328,7 +282,7 @@ internal unsafe static class RetainerHandlers
 
                     if (contextMenu != null)
                     {
-                        if (item->Quantity == 1 || item->ItemID <= 19)
+                        if (item->Quantity == 1 || item->ItemId <= 19)
                         {
                             if (indexOfRetrieveAll == -1) return true;
                             Callback.Fire(contextMenu, true, 0, indexOfRetrieveAll, 0, 0, 0);
@@ -365,9 +319,9 @@ internal unsafe static class RetainerHandlers
         {
             var button = (AtkComponentButton*)addon->UldManager.NodeList[2]->GetComponent();
             var nodetext = MemoryHelper.ReadSeString(&addon->UldManager.NodeList[2]->GetComponent()->UldManager.NodeList[2]->GetAsAtkTextNode()->NodeText).ExtractText();
-            if (nodetext == text && addon->UldManager.NodeList[2]->IsVisible && button->IsEnabled && RetainerInfo.GenericThrottle)
+            if (nodetext == text && addon->UldManager.NodeList[2]->IsVisible() && button->IsEnabled && RetainerInfo.GenericThrottle)
             {
-                new ClickButtonGeneric(addon, "RetainerItemTransferProgress").Click(button);
+                button->ClickAddonButton(addon);
                 return true;
             }
         }
@@ -398,13 +352,13 @@ internal unsafe static class RetainerHandlers
     {
         if (TryGetAddonByName<AddonSelectString>("SelectString", out var addon) && IsAddonReady(&addon->AtkUnitBase))
         {
-            var entry = GetEntries(addon).FirstOrDefault(x => x.EqualsAny(text));
+            var entry = GetEntries(addon).FirstOrDefault(x => x.StartsWithAny(text));
             if (entry != null)
             {
                 var index = GetEntries(addon).IndexOf(entry);
                 if (index >= 0 && IsSelectItemEnabled(addon, index) && RetainerInfo.GenericThrottle)
                 {
-                    ClickSelectString.Using((nint)addon).SelectItem((ushort)index);
+                    new AddonMaster.SelectString((nint)addon).Entries[(ushort)index].Select();
                     return true;
                 }
             }

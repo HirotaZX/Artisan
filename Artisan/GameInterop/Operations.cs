@@ -1,6 +1,5 @@
 ﻿using Artisan.Autocraft;
 using Artisan.GameInterop.CSExt;
-using Artisan.RawInformation;
 using ECommons;
 using ECommons.Automation;
 using ECommons.DalamudServices;
@@ -21,7 +20,6 @@ public static unsafe class Operations
                 if (GenericHelpers.TryGetAddonByName<AddonRecipeNote>("RecipeNote", out var recipenote))
                 {
                     Callback.Fire(&recipenote->AtkUnitBase, true, 10);
-                    Endurance.Tasks.Clear();
                 }
             }
         }
@@ -42,7 +40,7 @@ public static unsafe class Operations
             if (recipeWindow == nint.Zero)
                 return;
 
-            GenericHelpers.TryGetAddonByName<AddonRecipeNoteFixed>("RecipeNote", out var addon);
+            GenericHelpers.TryGetAddonByName<AddonRecipeNote>("RecipeNote", out var addon);
 
             if (addon->SelectedRecipeQuantityCraftableFromMaterialsInInventory == null || !int.TryParse(addon->SelectedRecipeQuantityCraftableFromMaterialsInInventory->NodeText.ToString(), out int trueNumberCraftable) || trueNumberCraftable == 0)
             {
@@ -129,7 +127,6 @@ public static unsafe class Operations
 
         Svc.Log.Debug($"Starting actual craft");
         Callback.Fire(&addon->AtkUnitBase, true, 8);
-        Endurance.Tasks.Clear();
         PreCrafting.Tasks.Clear();
         return true;
     }

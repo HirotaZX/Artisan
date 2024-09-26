@@ -32,6 +32,7 @@ namespace Artisan
         public int MaxPercentage = 100;
         public bool UseTricksGood = false;
         public int MaxIQPrepTouch = 10;
+        public bool LowStatsMode = false;
         public bool UseTricksExcellent = false;
         public bool UseSpecialist = false;
         public bool ShowEHQ = true;
@@ -60,7 +61,6 @@ namespace Artisan
         public bool DisableToasts = false;
         public bool ShowOnlyCraftable = false;
         public bool ShowOnlyCraftableRetainers = false;
-        public bool DisableMiniMenu = false;
         public bool Materia = false;
         public bool LockMiniMenuR = true;
 
@@ -104,7 +104,7 @@ namespace Artisan
         public bool ShowMacroAssignResults = false;
         public bool HideContextMenus = false;
         public int ContextMenuLoops = 1;
-        public float ListCraftThrottle = 1f;
+        public float ListCraftThrottle2 = 1f;
 
         public bool DefaultHideInventoryColumn = false;
         public bool DefaultHideRetainerColumn = false;
@@ -146,6 +146,8 @@ namespace Artisan
         public bool DisableSimulatorActionTooltips = false;
 
         public bool ReplaceSearch = true;
+        public bool UsingDiscordHooks;
+        public string? DiscordWebhookUrl;
 
         public void Save()
         {

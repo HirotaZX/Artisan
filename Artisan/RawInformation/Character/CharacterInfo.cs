@@ -1,11 +1,9 @@
-﻿using Dalamud.Utility;
-using Dalamud.Utility.Signatures;
+﻿using Dalamud.Utility.Signatures;
 using ECommons.DalamudServices;
 using ECommons.ExcelServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Lumina.Excel.GeneratedSheets;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -38,7 +36,7 @@ namespace Artisan.RawInformation.Character
 
         public static unsafe int Control;
 
-        public static unsafe int JobLevel(Job job) => PlayerState.Instance()->ClassJobLevelArray[Svc.Data.GetExcelSheet<ClassJob>()?.GetRow((uint)job)?.ExpArrayIndex ?? 0];
+        public static unsafe int JobLevel(Job job) => PlayerState.Instance()->ClassJobLevels[Svc.Data.GetExcelSheet<ClassJob>()?.GetRow((uint)job)?.ExpArrayIndex ?? 0];
 
         internal static bool IsManipulationUnlocked(Job job) =>  job switch
         {

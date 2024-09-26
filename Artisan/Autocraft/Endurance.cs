@@ -13,12 +13,12 @@ using ECommons.DalamudServices;
 using ECommons.ExcelServices;
 using ECommons.ImGuiMethods;
 using ECommons.Logging;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using static ECommons.GenericHelpers;
 
 namespace Artisan.Autocraft
@@ -33,7 +33,6 @@ namespace Artisan.Autocraft
     internal static unsafe class Endurance
     {
         internal static bool SkipBuffs = false;
-        internal static List<Task> Tasks = new();
         internal static CircularBuffer<long> Errors = new(5);
 
         internal static List<int>? HQData = null;
@@ -52,7 +51,6 @@ namespace Artisan.Autocraft
             get => enable;
             set
             {
-                Tasks.Clear();
                 enable = value;
             }
         }
@@ -200,7 +198,7 @@ namespace Artisan.Autocraft
         internal static void DrawRecipeData()
         {
             var addonPtr = Svc.GameGui.GetAddonByName("RecipeNote", 1);
-            if (TryGetAddonByName<AddonRecipeNoteFixed>("RecipeNote", out var addon))
+            if (TryGetAddonByName<AddonRecipeNote>("RecipeNote", out var addon))
             {
                 if (addonPtr == IntPtr.Zero)
                 {
@@ -211,7 +209,7 @@ namespace Artisan.Autocraft
                 {
                     try
                     {
-                        if (addon->AtkUnitBase.UldManager.NodeList[88]->IsVisible)
+                        if (addon->AtkUnitBase.UldManager.NodeList[88]->IsVisible())
                         {
                             RecipeID = 0;
                             return;
@@ -227,7 +225,7 @@ namespace Artisan.Autocraft
                             return;
                         }
 
-                        if (addon->AtkUnitBase.UldManager.NodeList[49]->IsVisible)
+                        if (addon->AtkUnitBase.UldManager.NodeList[49]->IsVisible())
                         {
                             RecipeID = selectedRecipe->RecipeId;
                         }
@@ -241,7 +239,7 @@ namespace Artisan.Autocraft
                                 if (node->Component->UldManager.NodeListCount < 16)
                                     return;
 
-                                if (node is null || !node->AtkResNode.IsVisible)
+                                if (node is null || !node->AtkResNode.IsVisible())
                                 {
                                     break;
                                 }
@@ -304,7 +302,7 @@ namespace Artisan.Autocraft
         {
             if (!Enable) return;
             var needToRepair = P.Config.Repair && RepairManager.GetMinEquippedPercent() < P.Config.RepairPercent && (RepairManager.CanRepairAny() || RepairManager.RepairNPCNearby(out _));
-            if ((Crafting.CurState == Crafting.State.QuickCraft && Crafting.QuickSynthCompleted) || needToRepair || IPC.IPC.StopCraftingRequest ||
+            if ((Crafting.CurState == Crafting.State.QuickCraft && Crafting.QuickSynthCompleted) || needToRepair ||
                 (P.Config.Materia && Spiritbond.IsSpiritbondReadyAny() && CharacterInfo.MateriaExtractionUnlocked()))
             {
                 Operations.CloseQuickSynthWindow();
@@ -369,17 +367,22 @@ namespace Artisan.Autocraft
 
                 var config = P.Config.RecipeConfigs.GetValueOrDefault(RecipeID) ?? new();
                 PreCrafting.CraftType type = P.Config.QuickSynthMode && recipe.CanQuickSynth && P.ri.HasRecipeCrafted(recipe.RowId) ? PreCrafting.CraftType.Quick : PreCrafting.CraftType.Normal;
-                bool needConsumables = (type == PreCrafting.CraftType.Normal || (type == PreCrafting.CraftType.Quick && P.Config.UseConsumablesQuickSynth)) && (!ConsumableChecker.IsFooded(config) || !ConsumableChecker.IsPotted(config) || !ConsumableChecker.IsManualled(config) || !ConsumableChecker.IsSquadronManualled(config));
-                bool hasConsumables = config != default ? ConsumableChecker.HasItem(config.RequiredFood, config.RequiredFoodHQ) && ConsumableChecker.HasItem(config.RequiredPotion, config.RequiredPotionHQ) && ConsumableChecker.HasItem(config.RequiredManual, false) && ConsumableChecker.HasItem(config.RequiredSquadronManual, false) : true;
+                bool needConsumables = PreCrafting.NeedsConsumablesCheck(type, config);
+                bool hasConsumables = PreCrafting.HasConsumablesCheck(config);
 
                 if (P.Config.AbortIfNoFoodPot && needConsumables && !hasConsumables)
                 {
-                    DuoLog.Error($"Can't craft {recipe.ItemResult.Value?.Name}: required consumables not up");
+                    PreCrafting.MissingConsumablesMessage(recipe, config);
                     Enable = false;
                     return;
                 }
 
-                if (needConsumables && hasConsumables)
+                bool needFood = config != default && ConsumableChecker.HasItem(config.RequiredFood, config.RequiredFoodHQ) && !ConsumableChecker.IsFooded(config);
+                bool needPot = config != default && ConsumableChecker.HasItem(config.RequiredPotion, config.RequiredPotionHQ) && !ConsumableChecker.IsPotted(config);
+                bool needManual = config != default && ConsumableChecker.HasItem(config.RequiredManual, false) && !ConsumableChecker.IsManualled(config);
+                bool needSquadronManual = config != default && ConsumableChecker.HasItem(config.RequiredSquadronManual, false) && !ConsumableChecker.IsSquadronManualled(config);
+
+                if (needFood || needPot || needManual || needSquadronManual)
                 {
                     if (!P.TM.IsBusy && !PreCrafting.Occupied())
                     {
@@ -412,7 +415,7 @@ namespace Artisan.Autocraft
                                 P.TM.Enqueue(() => CraftingListFunctions.SetIngredients(SetIngredients), "EnduranceSetIngredientsLayout");
 
                             P.TM.Enqueue(() => Operations.RepeatActualCraft(), "EnduranceNormalStart");
-                            P.TM.Enqueue(() => Crafting.CurState is Crafting.State.WaitStart, 5000, "EnduranceNormalWaitStart");
+                            P.TM.Enqueue(() => Crafting.CurState is Crafting.State.WaitStart, 1500, "EnduranceNormalWaitStart");
                         }
                     }
 

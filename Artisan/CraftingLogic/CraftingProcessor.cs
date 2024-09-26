@@ -2,7 +2,6 @@
 using Artisan.CraftingLogic.Solvers;
 using Artisan.GameInterop;
 using Artisan.RawInformation.Character;
-using ECommons;
 using ECommons.DalamudServices;
 using System;
 using System.Collections.Generic;
@@ -37,6 +36,7 @@ public static class CraftingProcessor
     public static void Setup()
     {
         _solverDefs.Add(new StandardSolverDefinition());
+        _solverDefs.Add(new ProgressOnlySolverDefinition());
         _solverDefs.Add(new ExpertSolverDefinition());
         _solverDefs.Add(new MacroSolverDefinition());
         _solverDefs.Add(new ScriptSolverDefinition());
@@ -67,6 +67,7 @@ public static class CraftingProcessor
                     yield return f;
                 }
             }
+            yield return default;
         }
     }
 
@@ -142,6 +143,7 @@ public static class CraftingProcessor
             Svc.Log.Warning($"Previous action was different from recommendation: recommended {_nextRec.Action}, used {step.PrevComboAction}");
 
         _nextRec = _activeSolver.Solve(craft, step);
+        Svc.Log.Debug($"Next rec is: {_nextRec.Action}");
         if (_nextRec.Action != Skills.None)
             RecommendationReady?.Invoke(recipe, ActiveSolver, craft, step, _nextRec);
     }

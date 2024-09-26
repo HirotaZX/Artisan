@@ -1,4 +1,5 @@
 ﻿using Artisan.CraftingLists;
+using Artisan.RawInformation.Character;
 using System.Collections.Generic;
 using System.Linq;
 using Condition = Artisan.CraftingLogic.CraftData.Condition;
@@ -27,7 +28,7 @@ public class MacroSolverDefinition : ISolverDefinition
 public class MacroSolver : Solver
 {
     private MacroSolverSettings.Macro _macro;
-    private Solver _fallback;
+    private Solver? _fallback;
     private int _nextStep;
 
     public MacroSolver(MacroSolverSettings.Macro m, CraftState craft)
@@ -81,6 +82,11 @@ public class MacroSolver : Solver
                 continue;
             }
 
+            if (action == Skills.TouchCombo)
+            {
+                action = Simulator.NextTouchCombo(step, craft);
+            }
+
             if (action == Skills.None)
             {
                 action = fallback.Action;
@@ -108,9 +114,9 @@ public class MacroSolver : Solver
         return new(Skills.None, "Macro has completed. Please continue to manually craft.");
     }
 
-    private static bool ActionIsQuality(Skills skill) => skill is Skills.BasicTouch or Skills.StandardTouch or Skills.AdvancedTouch or Skills.HastyTouch or Skills.FocusedTouch or Skills.PreparatoryTouch
+    private static bool ActionIsQuality(Skills skill) => skill is Skills.BasicTouch or Skills.StandardTouch or Skills.AdvancedTouch or Skills.HastyTouch or Skills.PreparatoryTouch
         or Skills.PreciseTouch or Skills.PrudentTouch or Skills.TrainedFinesse or Skills.ByregotsBlessing or Skills.GreatStrides or Skills.Innovation;
 
-    private static bool ActionIsUpgradeableQuality(Skills skill) => skill is Skills.HastyTouch or Skills.FocusedTouch or Skills.PreparatoryTouch or Skills.AdvancedTouch or Skills.StandardTouch or Skills.BasicTouch;
-    private static bool ActionIsUpgradeableProgress(Skills skill) => skill is Skills.FocusedSynthesis or Skills.Groundwork or Skills.PrudentSynthesis or Skills.CarefulSynthesis or Skills.BasicSynthesis;
+    private static bool ActionIsUpgradeableQuality(Skills skill) => skill is Skills.HastyTouch or Skills.PreparatoryTouch or Skills.AdvancedTouch or Skills.StandardTouch or Skills.BasicTouch;
+    private static bool ActionIsUpgradeableProgress(Skills skill) => skill is Skills.Groundwork or Skills.PrudentSynthesis or Skills.CarefulSynthesis or Skills.BasicSynthesis;
 }

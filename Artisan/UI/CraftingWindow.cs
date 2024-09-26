@@ -127,7 +127,7 @@ namespace Artisan.UI
                 var text = $"Using {CraftingProcessor.ActiveSolver.Name}";
                 if (CraftingProcessor.NextRec.Comment.Length > 0)
                     text += $" ({CraftingProcessor.NextRec.Comment})";
-                ImGui.TextWrapped(text);
+                ImGuiEx.TextWrapped(text.Replace("%", ""));
             }
 
             if (P.Config.CraftingX && Endurance.Enable)
@@ -191,6 +191,7 @@ namespace Artisan.UI
 
         private void OnRecommendationReady(Lumina.Excel.GeneratedSheets.Recipe recipe, SolverRef solver, CraftState craft, StepState step, Solver.Recommendation recommendation)
         {
+            Svc.Log.Debug($"{step.TrainedPerfectionAvailable}");
             if (!Simulator.CanUseAction(craft, step, recommendation.Action))
             {
                 return;

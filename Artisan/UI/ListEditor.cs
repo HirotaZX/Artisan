@@ -226,6 +226,16 @@ internal class ListEditor : Window, IDisposable
             if (Endurance.Enable || CraftingListUI.Processing)
                 ImGui.EndDisabled();
         }
+        else
+        {
+            ImGui.SameLine();
+
+            if (!RetainerInfo.AToolsInstalled)
+                ImGuiEx.Text(ImGuiColors.DalamudYellow, $"Please install Allagan Tools for retainer features.");
+
+            if (RetainerInfo.AToolsInstalled && !RetainerInfo.AToolsEnabled)
+                ImGuiEx.Text(ImGuiColors.DalamudYellow, $"Please enable Allagan Tools for retainer features.");
+        }
 
         if (ImGui.BeginTabBar("CraftingListEditor", ImGuiTabBarFlags.None))
         {
@@ -594,7 +604,7 @@ internal class ListEditor : Window, IDisposable
         {
             listTime = CraftingListUI.GetListTimer(SelectedList);
         });
-        string duration = string.Format("{0:D2}d {1:D2}h {2:D2}m {3:D2}s", listTime.Days, listTime.Hours, listTime.Minutes, listTime.Seconds);
+        string duration = listTime == TimeSpan.Zero ? "Unknown" : string.Format("{0:D2}d {1:D2}h {2:D2}m {3:D2}s", listTime.Days, listTime.Hours, listTime.Minutes, listTime.Seconds);
         ImGui.SameLine();
         ImGui.Text($"Approximate List Time: {duration}");
     }
@@ -1087,8 +1097,6 @@ internal class ListEditor : Window, IDisposable
         {
             SelectedList.Recipes.First(x => x.ID == selectedListItem).ListItemOptions = new();
         }
-        if (SelectedList.AddAsQuickSynth && recipe.CanQuickSynth)
-            SelectedList.Recipes.First(x => x.ID == selectedListItem).ListItemOptions.NQOnly = true;
 
         var options = SelectedList.Recipes.First(x => x.ID == selectedListItem).ListItemOptions;
 
@@ -1113,6 +1121,12 @@ internal class ListEditor : Window, IDisposable
                 Notify.Success($"Quick Synth applied to all list items.");
                 P.Config.Save();
             }
+
+            if (NQOnly && !P.Config.UseConsumablesQuickSynth)
+            {
+                if (ImGui.Checkbox("You do not have quick synth consumables enabled. Turn this on?", ref P.Config.UseConsumablesQuickSynth))
+                    P.Config.Save();
+            }
         }
         else
         {
@@ -1133,23 +1147,30 @@ internal class ListEditor : Window, IDisposable
                     var altJ = $"{LuminaSheets.ClassJobSheet[altJob.CraftType.Row + 8].Abbreviation.RawString}";
                     if (ImGui.Selectable($"{altJ}"))
                     {
-                        if (SelectedList.Recipes.Any(x => x.ID == altJob.RowId))
+                        try
                         {
-                            SelectedList.Recipes.First(x => x.ID == altJob.RowId).Quantity += SelectedList.Recipes.First(x => x.ID == selectedListItem).Quantity;
-                            SelectedList.Recipes.Remove(SelectedList.Recipes.First(x => x.ID == selectedListItem));
-                            RecipeSelector.Items.RemoveAt(RecipeSelector.CurrentIdx);
-                            RecipeSelector.Current = RecipeSelector.Items.First(x => x.ID == altJob.RowId);
-                            RecipeSelector.CurrentIdx = RecipeSelector.Items.IndexOf(RecipeSelector.Current);
-                        }
-                        else
-                        {
-                            SelectedList.Recipes.First(x => x.ID == selectedListItem).ID = altJob.RowId;
-                            RecipeSelector.Items[RecipeSelector.CurrentIdx].ID = altJob.RowId;
-                            RecipeSelector.Current = RecipeSelector.Items[RecipeSelector.CurrentIdx];
-                        }
-                        NeedsToRefreshTable = true;
+                            if (SelectedList.Recipes.Any(x => x.ID == altJob.RowId))
+                            {
+                                SelectedList.Recipes.First(x => x.ID == altJob.RowId).Quantity += SelectedList.Recipes.First(x => x.ID == selectedListItem).Quantity;
+                                SelectedList.Recipes.Remove(SelectedList.Recipes.First(x => x.ID == selectedListItem));
+                                RecipeSelector.Items.RemoveAt(RecipeSelector.CurrentIdx);
+                                RecipeSelector.Current = RecipeSelector.Items.First(x => x.ID == altJob.RowId);
+                                RecipeSelector.CurrentIdx = RecipeSelector.Items.IndexOf(RecipeSelector.Current);
+                            }
+                            else
+                            {
+                                SelectedList.Recipes.First(x => x.ID == selectedListItem).ID = altJob.RowId;
+                                RecipeSelector.Items[RecipeSelector.CurrentIdx].ID = altJob.RowId;
+                                RecipeSelector.Current = RecipeSelector.Items[RecipeSelector.CurrentIdx];
+                            }
+                            NeedsToRefreshTable = true;
 
-                        P.Config.Save();
+                            P.Config.Save();
+                        }
+                        catch
+                        {
+
+                        }
                     }
                 }
 
@@ -1201,6 +1222,48 @@ internal class ListEditor : Window, IDisposable
             }
         }
 
+        {
+            if (config.DrawManual(true))
+            {
+                P.Config.RecipeConfigs[selectedListItem] = config;
+                P.Config.Save();
+            }
+
+            ImGui.SameLine();
+
+            if (ImGui.Button($"Apply to all###ManualApplyAll"))
+            {
+                foreach (var r in SelectedList.Recipes.Distinct())
+                {
+                    var o = P.Config.RecipeConfigs.GetValueOrDefault(r.ID) ?? new();
+                    o.RequiredManual = config.RequiredManual;
+                    P.Config.RecipeConfigs[r.ID] = o;
+                }
+                P.Config.Save();
+            }
+        }
+
+        {
+            if (config.DrawSquadronManual(true))
+            {
+                P.Config.RecipeConfigs[selectedListItem] = config;
+                P.Config.Save();
+            }
+
+            ImGui.SameLine();
+
+            if (ImGui.Button($"Apply to all###SquadManualApplyAll"))
+            {
+                foreach (var r in SelectedList.Recipes.Distinct())
+                {
+                    var o = P.Config.RecipeConfigs.GetValueOrDefault(r.ID) ?? new();
+                    o.RequiredSquadronManual = config.RequiredSquadronManual;
+                    P.Config.RecipeConfigs[r.ID] = o;
+                }
+                P.Config.Save();
+            }
+        }
+
         var stats = CharacterStats.GetBaseStatsForClassHeuristic(Job.CRP + recipe.CraftType.Row);
         stats.AddConsumables(new(config.RequiredFood, config.RequiredFoodHQ), new(config.RequiredPotion, config.RequiredPotionHQ));
         var craft = Crafting.BuildCraftStateForRecipe(stats, Job.CRP + recipe.CraftType.Row, recipe);
@@ -1209,6 +1272,12 @@ internal class ListEditor : Window, IDisposable
             P.Config.RecipeConfigs[selectedListItem] = config;
             P.Config.Save();
         }
+
+        var solverHint = Simulator.SimulatorResult(recipe, config, craft, out var hintColor);
+        if (!recipe.IsExpert)
+            ImGuiEx.TextWrapped(hintColor, solverHint);
+        else
+            ImGuiEx.TextWrapped($"Please run this recipe in the simulator for results.");
     }
 
     private void DrawRecipeSettingsHeader()
@@ -1309,8 +1378,8 @@ internal class RecipeSelector : ItemSelector<ListItem>
 
     protected override bool OnDelete(int idx)
     {
-        var itemId = Items[idx];
-        List.Recipes.Remove(itemId);
+        var ItemId = Items[idx];
+        List.Recipes.Remove(ItemId);
         Items.RemoveAt(idx);
         P.Config.Save();
         return true;
@@ -1319,26 +1388,26 @@ internal class RecipeSelector : ItemSelector<ListItem>
     protected override bool OnDraw(int idx, out bool changes)
     {
         changes = false;
-        var itemId = Items[idx];
-        var itemCount = itemId.Quantity;
-        var yield = LuminaSheets.RecipeSheet[itemId.ID].AmountResult * itemCount;
+        var ItemId = Items[idx];
+        var itemCount = ItemId.Quantity;
+        var yield = LuminaSheets.RecipeSheet[ItemId.ID].AmountResult * itemCount;
         var label =
-            $"{idx + 1}. {itemId.ID.NameOfRecipe()} x{itemCount}{(yield != itemCount ? $" ({yield} total)" : string.Empty)}";
+            $"{idx + 1}. {ItemId.ID.NameOfRecipe()} x{itemCount}{(yield != itemCount ? $" ({yield} total)" : string.Empty)}";
         maxSize = ImGui.CalcTextSize(label).X > maxSize ? ImGui.CalcTextSize(label).X : maxSize;
 
-        if (itemId.ListItemOptions is null)
+        if (ItemId.ListItemOptions is null)
         {
-            itemId.ListItemOptions = new();
+            ItemId.ListItemOptions = new();
             P.Config.Save();
         }
 
-        using (var col = ImRaii.PushColor(ImGuiCol.Text, itemCount == 0 || itemId.ListItemOptions.Skipping ? ImGuiColors.DalamudRed : ImGuiColors.DalamudWhite))
+        using (var col = ImRaii.PushColor(ImGuiCol.Text, itemCount == 0 || ItemId.ListItemOptions.Skipping ? ImGuiColors.DalamudRed : ImGuiColors.DalamudWhite))
         {
             var res = ImGui.Selectable(label, idx == CurrentIdx);
-            ImGuiEx.Tooltip($"Right click to {(itemId.ListItemOptions.Skipping ? "enable" : "skip")} this recipe.");
+            ImGuiEx.Tooltip($"Right click to {(ItemId.ListItemOptions.Skipping ? "enable" : "skip")} this recipe.");
             if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
             {
-                itemId.ListItemOptions.Skipping = !itemId.ListItemOptions.Skipping;
+                ItemId.ListItemOptions.Skipping = !ItemId.ListItemOptions.Skipping;
                 changes = true;
                 P.Config.Save();
             }
