@@ -9,4 +9,4 @@
 	url = https://github.com/Taurenkey/ClickLib.git
 [submodule "OtterGui"]
 	path = OtterGui
-	url = https://github.com/Taurenkey/OtterGui
+	url = https://github.com/sharkycorps/OtterGui
